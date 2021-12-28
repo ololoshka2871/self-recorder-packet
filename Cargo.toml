@@ -1,0 +1,11 @@
+[package]
+authors = ["ololoshka2871"]
+name = "self-recorder-packet"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+
+[build-dependencies]
+
+[dev-dependencies]
