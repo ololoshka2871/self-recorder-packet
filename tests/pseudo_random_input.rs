@@ -86,7 +86,7 @@ mod test {
 
         let mut generator = ResultGenerator::new();
         let mut input_data = Vec::new();
-        let mut block = DataBlockPacker::new(35u32, 36u32, 0x01300aa00u32, BLOCK_SIZE);
+        let mut block = DataBlockPacker::new(35, 36, 0x01300aafa0170, BLOCK_SIZE);
 
         let src_header = block.header.clone();
 
@@ -104,9 +104,9 @@ mod test {
             }
         };
 
-        let unpacker = DataBlockUnPacker::<u32, u32>::new(result);
+        let unpacker = DataBlockUnPacker::new(result);
 
         assert_eq!(src_header, unpacker.header());
-        assert_eq!(input_data, unpacker.unpack_as::<u32>());
+        assert_eq!(input_data, unpacker.unpack_as());
     }
 }

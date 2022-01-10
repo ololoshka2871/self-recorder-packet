@@ -1,31 +1,25 @@
-use core::{marker::PhantomData, mem::MaybeUninit};
+use core::mem::MaybeUninit;
 
 use alloc::vec::Vec;
 use heatshrink_rust::decoder::HeatshrinkDecoder;
 
 use crate::DataPacketHeader;
 
-pub struct DataBlockUnPacker<ID, TS> {
+pub struct DataBlockUnPacker {
     data: Vec<u8>,
-    id: PhantomData<ID>,
-    ts: PhantomData<TS>,
 }
 
-impl<ID, TS> DataBlockUnPacker<ID, TS> {
+impl DataBlockUnPacker {
     pub fn new(data: Vec<u8>) -> Self {
-        Self {
-            data,
-            id: PhantomData,
-            ts: PhantomData,
-        }
+        Self { data }
     }
 
-    pub fn header(&self) -> DataPacketHeader<ID, TS> {
+    pub fn header(&self) -> DataPacketHeader {
         let mut res = unsafe { MaybeUninit::zeroed().assume_init() };
 
         unsafe {
             core::ptr::copy_nonoverlapping(
-                self.data.as_ptr() as *const DataPacketHeader<ID, TS>,
+                self.data.as_ptr() as *const DataPacketHeader,
                 &mut res,
                 1,
             );
@@ -38,7 +32,7 @@ impl<ID, TS> DataBlockUnPacker<ID, TS> {
         let decoder = HeatshrinkDecoder::source(
             self.data
                 .iter()
-                .skip(core::mem::size_of::<DataPacketHeader<ID, TS>>())
+                .skip(core::mem::size_of::<DataPacketHeader>())
                 .cloned(),
         );
 
@@ -47,7 +41,7 @@ impl<ID, TS> DataBlockUnPacker<ID, TS> {
 
     pub fn unpack_as<T: Copy + Default>(&self) -> Vec<T> {
         let data = self.unpack_data();
-        
+
         assert!(
             data.len() % core::mem::size_of::<T>() == 0,
             "Data allignment invalid"

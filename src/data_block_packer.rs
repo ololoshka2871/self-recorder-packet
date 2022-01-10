@@ -1,4 +1,3 @@
-
 use core::mem::swap;
 
 use alloc::vec::Vec;
@@ -7,8 +6,8 @@ use heatshrink_rust::encoder_to_vec::HeatshrinkEncoderToVec;
 
 use crate::DataPacketHeader;
 
-pub struct DataBlockPacker<ID, TS> {
-    pub header: DataPacketHeader<ID, TS>,
+pub struct DataBlockPacker {
+    pub header: DataPacketHeader,
     encoder: Option<HeatshrinkEncoderToVec>,
     result: Option<Vec<u8>>,
 }
@@ -21,9 +20,9 @@ pub enum PushResult {
     Finished,
 }
 
-impl<ID, TS> DataBlockPacker<ID, TS> {
-    pub fn new(prev_block_id: ID, this_block_id: ID, timestamp: TS, size: usize) -> Self {
-        assert!(size > core::mem::size_of::<DataPacketHeader<ID, TS>>());
+impl DataBlockPacker {
+    pub fn new(prev_block_id: usize, this_block_id: usize, timestamp: u64, size: usize) -> Self {
+        assert!(size > core::mem::size_of::<DataPacketHeader>());
 
         Self {
             header: DataPacketHeader {
@@ -33,17 +32,15 @@ impl<ID, TS> DataBlockPacker<ID, TS> {
                 timestamp,
                 p_target: 0,
                 t_target: 0,
-                p_initial_result: 0,
-                t_initial_result: 0,
 
                 t_cpu: 0.0,
                 v_bat: 0.0,
 
-                crc32: 0,
+                data_crc32: 0,
             },
             encoder: Some(HeatshrinkEncoderToVec::dest(
-                Vec::with_capacity(size - core::mem::size_of::<DataPacketHeader<ID, TS>>()),
-                core::mem::size_of::<DataPacketHeader<ID, TS>>(),
+                Vec::with_capacity(size - core::mem::size_of::<DataPacketHeader>()),
+                core::mem::size_of::<DataPacketHeader>(),
             )),
             result: None,
         }
@@ -106,7 +103,7 @@ impl<ID, TS> DataBlockPacker<ID, TS> {
             unsafe {
                 core::ptr::copy_nonoverlapping(
                     &self.header,
-                    d.as_mut_ptr() as *mut DataPacketHeader<ID, TS>,
+                    d.as_mut_ptr() as *mut DataPacketHeader,
                     1,
                 )
             };
@@ -119,18 +116,18 @@ impl<ID, TS> DataBlockPacker<ID, TS> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{DataBlockPacker, data_block_packer::PushResult};
+    use crate::{data_block_packer::PushResult, DataBlockPacker};
 
     #[test]
     #[should_panic]
     fn create_too_small() {
-        let _ = DataBlockPacker::new(0u32, 0, 0u64, 16);
+        let _ = DataBlockPacker::new(0, 0, 0u64, 16);
     }
 
     #[test]
     fn crate_push() {
         const DATA_SIZE: usize = 4096;
-        let mut block = DataBlockPacker::new(0u32, 0, 0u64, DATA_SIZE);
+        let mut block = DataBlockPacker::new(0, 0, 0u64, DATA_SIZE);
 
         for i in 0.. {
             match block.push_byte((i & 0xff) as u8) {
