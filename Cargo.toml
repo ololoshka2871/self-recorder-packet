@@ -1,11 +1,13 @@
 [package]
 authors = ["ololoshka2871"]
 name = "self-recorder-packet"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 
 [dependencies]
+heatshrink-rust = { git = "https://github.com/ololoshka2871/heatshrink.rs.git" }
 
 [build-dependencies]
 
 [dev-dependencies]
+rand = "0.8"
