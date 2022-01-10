@@ -2,7 +2,7 @@
 
 mod test {
     use rand::{prelude::ThreadRng, Rng};
-    use self_recorder_packet::DataBlockPacker;
+    use self_recorder_packet::{DataBlockPacker, DataBlockUnPacker};
 
     const INITIAL_RESULT: u32 = 12_000_000;
     const OFFSET_MAX: i32 = 50;
@@ -64,7 +64,7 @@ mod test {
         let mut block = DataBlockPacker::new(0, 0, 0x00000000, BLOCK_SIZE);
 
         let result = loop {
-            match block.push_val(generator.next()) {
+            match block.push_val(generator.next().unwrap()) {
                 self_recorder_packet::PushResult::Success => {
                     input_count += std::mem::size_of::<u32>();
                 }
@@ -78,5 +78,35 @@ mod test {
 
         assert!(input_count > result.len());
         println!("{} compressed to {} bytes", input_count, result.len());
+    }
+
+    #[test]
+    fn compress_decompress_pseudo_random() {
+        const BLOCK_SIZE: usize = 4096;
+
+        let mut generator = ResultGenerator::new();
+        let mut input_data = Vec::new();
+        let mut block = DataBlockPacker::new(35u32, 36u32, 0x01300aa00u32, BLOCK_SIZE);
+
+        let src_header = block.header.clone();
+
+        let result = loop {
+            let v = generator.next().unwrap();
+            match block.push_val(v) {
+                self_recorder_packet::PushResult::Success => {
+                    input_data.push(v);
+                }
+                self_recorder_packet::PushResult::Full => {
+                    input_data.push(v);
+                    break block.to_result().unwrap();
+                }
+                _ => panic!(),
+            }
+        };
+
+        let unpacker = DataBlockUnPacker::<u32, u32>::new(result);
+
+        assert_eq!(src_header, unpacker.header());
+        assert_eq!(input_data, unpacker.unpack_as::<u32>());
     }
 }

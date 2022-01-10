@@ -3,6 +3,7 @@
 
 extern crate alloc;
 
+#[derive(PartialEq, Debug, Clone)]
 pub struct DataPacketHeader<ID, TS> {
     pub prev_block_id: ID,
     pub this_block_id: ID,
