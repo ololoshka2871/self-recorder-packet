@@ -107,7 +107,7 @@ mod test {
         let res_len = result.len();
         let unpacker = DataBlockUnPacker::new(result);
 
-        assert_eq!(src_header, unpacker.header());
+        assert_eq!(src_header, unpacker.hader());
         assert_eq!(input_data, unpacker.unpack_as());
         println!("Packed {} values to block ({} bytes)", input_data.len(), res_len);
     }
@@ -139,8 +139,9 @@ mod test {
         let res_len = result.len();
         let unpacker = DataBlockUnPacker::new(result);
 
-        assert_eq!(src_header, unpacker.header());
-        assert_eq!(input_data, unpacker.unpack_as());
+        assert_eq!(src_header, unpacker.hader());
+        let unpacked = unpacker.unpack_as();
+        assert_eq!(input_data, unpacked);
         println!("Packed {} values to block ({} bytes)", input_data.len(), res_len);
     }
 }

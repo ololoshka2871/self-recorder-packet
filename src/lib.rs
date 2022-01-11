@@ -5,8 +5,8 @@ extern crate alloc;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct DataPacketHeader {
-    pub prev_block_id: usize,
-    pub this_block_id: usize,
+    pub prev_block_id: u32,
+    pub this_block_id: u32,
 
     pub timestamp: u64,
 

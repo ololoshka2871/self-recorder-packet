@@ -14,7 +14,7 @@ impl DataBlockUnPacker {
         Self { data }
     }
 
-    pub fn header(&self) -> DataPacketHeader {
+    pub fn hader(&self) -> DataPacketHeader {
         let mut res = unsafe { MaybeUninit::zeroed().assume_init() };
 
         unsafe {

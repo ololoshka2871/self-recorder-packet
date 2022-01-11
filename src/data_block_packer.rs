@@ -21,7 +21,7 @@ pub enum PushResult {
 }
 
 impl DataBlockPacker {
-    pub fn new(prev_block_id: usize, this_block_id: usize, timestamp: u64, size: usize) -> Self {
+    pub fn new(prev_block_id: u32, this_block_id: u32, timestamp: u64, size: usize) -> Self {
         assert!(size > core::mem::size_of::<DataPacketHeader>());
 
         Self {
