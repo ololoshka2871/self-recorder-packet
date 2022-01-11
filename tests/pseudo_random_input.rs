@@ -104,9 +104,43 @@ mod test {
             }
         };
 
+        let res_len = result.len();
         let unpacker = DataBlockUnPacker::new(result);
 
         assert_eq!(src_header, unpacker.header());
         assert_eq!(input_data, unpacker.unpack_as());
+        println!("Packed {} values to block ({} bytes)", input_data.len(), res_len);
+    }
+
+    #[test]
+    fn compress_decompress_floats() {
+        const BLOCK_SIZE: usize = 4096;
+
+        let mut generator = ResultGenerator::new();
+        let mut input_data = Vec::new();
+        let mut block = DataBlockPacker::new(45, 46, 0x71389aaf60180, BLOCK_SIZE);
+
+        let src_header = block.header.clone();
+
+        let result = loop {
+            let v = generator.next().unwrap() as f32 / INITIAL_RESULT as f32;
+            match block.push_val(v) {
+                self_recorder_packet::PushResult::Success => {
+                    input_data.push(v);
+                }
+                self_recorder_packet::PushResult::Full => {
+                    input_data.push(v);
+                    break block.to_result().unwrap();
+                }
+                _ => panic!(),
+            }
+        };
+
+        let res_len = result.len();
+        let unpacker = DataBlockUnPacker::new(result);
+
+        assert_eq!(src_header, unpacker.header());
+        assert_eq!(input_data, unpacker.unpack_as());
+        println!("Packed {} values to block ({} bytes)", input_data.len(), res_len);
     }
 }
