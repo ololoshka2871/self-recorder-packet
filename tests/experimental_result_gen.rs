@@ -1,4 +1,5 @@
 #![feature(total_cmp)]
+#![feature(mixed_integer_ops)]
 
 mod test {
     use std::path::Path;
@@ -19,69 +20,28 @@ mod test {
     }
 
     #[test]
-    fn compress_1_block_real_data() {
-        const BLOCK_SIZE: usize = 4096;
+    fn convert_to_result_with_fixed_target() {
+        const F_REF: u32 = 10_000_000;
 
-        let experimental_data = readfile("tests/test_data/P1.txt");
+        let data = readfile("tests/test_data/FP1.txt");
+        let target = data[0].round() as u32;
 
-        let mut it = experimental_data.iter();
-        let mut input_count = 0;
-
-        let mut block = DataBlockPacker::new(0, 0, 0x00000000, BLOCK_SIZE);
-
-        let result = loop {
-            match block.push_val(it.next().unwrap()) {
-                self_recorder_packet::PushResult::Success => {
-                    input_count += 1;
-                }
-                self_recorder_packet::PushResult::Full => {
-                    input_count += 1;
-                    break block.to_result().unwrap();
-                }
-                _ => panic!(),
-            }
-        };
-
-        println!(
-            "{} floats compressed to {} bytes",
-            input_count,
-            result.len()
-        );
-    }
-
-    #[test]
-    fn compress_decompress_1_block_real_data() {
-        const BLOCK_SIZE: usize = 4096;
-
-        let experimental_data = readfile("tests/test_data/T1.txt");
-        let mut it = experimental_data.iter();
-        let mut block = DataBlockPacker::new(56, 57, 0x000100080, BLOCK_SIZE);
-
-        let result = loop {
-            match block.push_val(*it.next().unwrap()) {
-                self_recorder_packet::PushResult::Success => {}
-                self_recorder_packet::PushResult::Full => {
-                    break block.to_result().unwrap();
-                }
-                _ => panic!(),
-            }
-        };
-
-        let unpacker = DataBlockUnPacker::new(result);
-        let unpacked = unpacker.unpack_as();
-        let exp_fragment = experimental_data
-            .iter()
-            .cloned()
-            .take(unpacked.len())
-            .collect::<Vec<_>>();
-        assert_eq!(exp_fragment, unpacked);
+        let result = result(data[0], target, F_REF);
+        println!("result: {}", result);
     }
 
     #[test]
     fn process_data_set() {
         const BLOCK_SIZE: usize = 4096;
+        const F_REF: u32 = 10_000_000;
 
-        let experimental_data = readfile("tests/test_data/P1.txt");
+        let experimental_data = readfile("tests/test_data/FP1.txt");
+
+        let target = experimental_data[0].round() as u32;
+        let experimental_data = experimental_data
+            .iter()
+            .map(|f| result(*f, target, F_REF))
+            .collect::<Vec<_>>();
 
         let compressed_chain = compress(experimental_data.iter(), BLOCK_SIZE);
         print_staticstics(&compressed_chain, BLOCK_SIZE);
@@ -94,10 +54,17 @@ mod test {
     }
 
     #[test]
-    fn process_data_set_w_diffs() {
+    fn process_data_set_diff() {
         const BLOCK_SIZE: usize = 4096;
+        const F_REF: u32 = 10_000_000;
 
-        let experimental_data = readfile("tests/test_data/P1.txt");
+        let experimental_data = readfile("tests/test_data/FP1.txt");
+
+        let target = experimental_data[0].round() as u32;
+        let experimental_data = experimental_data
+            .iter()
+            .map(|f| result(*f, target, F_REF))
+            .collect::<Vec<_>>();
 
         let compressed_chain = compress_diff(experimental_data.iter(), BLOCK_SIZE);
         print_staticstics(&compressed_chain, BLOCK_SIZE);
@@ -112,6 +79,7 @@ mod test {
     #[test]
     fn process_all_experimental_data() {
         const BLOCK_SIZE: usize = 4096;
+        const F_REF: u32 = 10_000_000;
 
         std::fs::read_dir("tests/test_data")
             .unwrap()
@@ -119,6 +87,11 @@ mod test {
                 if let Ok(f) = file {
                     println!("File: {:?}", f.path());
                     let experimental_data = readfile(f.path());
+                    let target = experimental_data[0].round() as u32;
+                    let experimental_data = experimental_data
+                        .iter()
+                        .map(|f| result(*f, target, F_REF))
+                        .collect::<Vec<_>>();
 
                     let compressed_chain_plan = compress(experimental_data.iter(), BLOCK_SIZE);
                     let compressed_chain_diff = compress_diff(experimental_data.iter(), BLOCK_SIZE);
@@ -141,21 +114,10 @@ mod test {
             });
     }
 
-    fn new_packer(id: &mut u32, block_size: usize) -> DataBlockPacker {
-        let timstamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        let packer = DataBlockPacker::new(
-            id.checked_sub(1).unwrap_or_default(),
-            *id,
-            timstamp,
-            block_size,
-        );
-        *id += 1;
-
-        packer
+    fn result(f: f32, target: u32, fref: u32) -> u32 {
+        // f = fref * target / result;
+        // result = fref * target / f
+        (fref as f32 * target as f32 / f).round() as u32
     }
 
     fn print_staticstics(compressed_chain: &Vec<(Vec<u8>, usize)>, block_size: usize) {
@@ -217,8 +179,25 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
         );
     }
 
+    fn new_packer(id: &mut u32, block_size: usize) -> DataBlockPacker {
+        let timstamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let packer = DataBlockPacker::new(
+            id.checked_sub(1).unwrap_or_default(),
+            *id,
+            timstamp,
+            block_size,
+        );
+        *id += 1;
+
+        packer
+    }
+
     fn compress<'a>(
-        mut it: impl Iterator<Item = &'a f32>,
+        mut it: impl Iterator<Item = &'a u32>,
         block_size: usize,
     ) -> Vec<(Vec<u8>, usize)> {
         let mut current_block_id = 0u32;
@@ -253,7 +232,7 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
     }
 
     fn compress_diff<'a>(
-        mut it: impl Iterator<Item = &'a f32>,
+        mut it: impl Iterator<Item = &'a u32>,
         block_size: usize,
     ) -> Vec<(Vec<u8>, usize)> {
         let mut current_block_id = 0u32;
@@ -263,11 +242,11 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
         'compressor: loop {
             let mut packer = new_packer(&mut current_block_id, block_size);
 
-            let mut prev = 0.0;
+            let mut prev = 0i32;
             let mut src_size = 0;
             let block = loop {
                 if let Some(v) = it.next() {
-                    let new_val = *v;
+                    let new_val = *v as i32;
                     let diff = new_val - prev;
                     prev = new_val;
                     match packer.push_val(diff) {
@@ -291,7 +270,7 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
         compressed_chain
     }
 
-    fn unpack(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<f32> {
+    fn unpack(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<u32> {
         compressed_chain
             .iter()
             .cloned()
@@ -305,13 +284,13 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
                     h.prev_block_id
                 );
 
-                let mut data = unpacker.unpack_as::<f32>();
+                let mut data = unpacker.unpack_as::<u32>();
                 acc.append(&mut data);
                 acc
             })
     }
 
-    fn unpack_diff(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<f32> {
+    fn unpack_diff(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<u32> {
         compressed_chain
             .iter()
             .cloned()
@@ -325,10 +304,12 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
                     h.prev_block_id
                 );
 
-                let mut data = unpacker.unpack_as::<f32>();
+                let mut data = unpacker.unpack_as::<u32>();
                 let mut prev = data[0];
                 data[1..].iter_mut().for_each(|v| {
-                    let this_value = prev + *v;
+                    let this_value = prev
+                        .checked_add_signed(unsafe { core::mem::transmute(*v) })
+                        .unwrap();
                     prev = this_value;
                     *v = this_value;
                 });
