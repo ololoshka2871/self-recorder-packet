@@ -94,6 +94,22 @@ mod test {
     }
 
     #[test]
+    fn process_data_set_w_diffs() {
+        const BLOCK_SIZE: usize = 4096;
+
+        let experimental_data = readfile("tests/test_data/P1.txt");
+
+        let compressed_chain = compress_diff(experimental_data.iter(), BLOCK_SIZE);
+        print_staticstics(&compressed_chain, BLOCK_SIZE);
+
+        let unpacked_data = unpack_diff(compressed_chain);
+        assert_eq!(
+            &experimental_data[..unpacked_data.len()],
+            &unpacked_data[..]
+        );
+    }
+
+    #[test]
     fn process_all_experimental_data() {
         const BLOCK_SIZE: usize = 4096;
 
@@ -104,13 +120,22 @@ mod test {
                     println!("File: {:?}", f.path());
                     let experimental_data = readfile(f.path());
 
-                    let compressed_chain = compress(experimental_data.iter(), BLOCK_SIZE);
-                    print_staticstics(&compressed_chain, BLOCK_SIZE);
+                    let compressed_chain_plan = compress(experimental_data.iter(), BLOCK_SIZE);
+                    let compressed_chain_diff = compress_diff(experimental_data.iter(), BLOCK_SIZE);
+                    println!("== Plan compressing ==");
+                    print_staticstics(&compressed_chain_plan, BLOCK_SIZE);
+                    println!("== Diff compressing ==");
+                    print_staticstics(&compressed_chain_diff, BLOCK_SIZE);
 
-                    let unpacked_data = unpack(compressed_chain);
+                    let unpacked_data_plan = unpack(compressed_chain_plan);
+                    let unpacked_data_diff = unpack_diff(compressed_chain_diff);
                     assert_eq!(
-                        &experimental_data[..unpacked_data.len()],
-                        &unpacked_data[..]
+                        &experimental_data[..unpacked_data_plan.len()],
+                        &unpacked_data_plan[..]
+                    );
+                    assert_eq!(
+                        &experimental_data[..unpacked_data_diff.len()],
+                        &unpacked_data_diff[..]
                     );
                 }
             });
@@ -227,6 +252,45 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
         compressed_chain
     }
 
+    fn compress_diff<'a>(
+        mut it: impl Iterator<Item = &'a f32>,
+        block_size: usize,
+    ) -> Vec<(Vec<u8>, usize)> {
+        let mut current_block_id = 0u32;
+
+        let mut compressed_chain = vec![];
+
+        'compressor: loop {
+            let mut packer = new_packer(&mut current_block_id, block_size);
+
+            let mut prev = 0.0;
+            let mut src_size = 0;
+            let block = loop {
+                if let Some(v) = it.next() {
+                    let new_val = *v;
+                    let diff = new_val - prev;
+                    prev = new_val;
+                    match packer.push_val(diff) {
+                        self_recorder_packet::PushResult::Success => {
+                            src_size += std::mem::size_of::<f32>();
+                        }
+                        self_recorder_packet::PushResult::Full => {
+                            src_size += std::mem::size_of::<f32>();
+                            break packer.to_result().unwrap();
+                        }
+                        _ => panic!(),
+                    }
+                } else {
+                    // данные кончились, финализация не предусмотрена, просто выход
+                    break 'compressor;
+                }
+            };
+            compressed_chain.push((block, src_size));
+        }
+
+        compressed_chain
+    }
+
     fn unpack(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<f32> {
         compressed_chain
             .iter()
@@ -242,6 +306,33 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
                 );
 
                 let mut data = unpacker.unpack_as::<f32>();
+                acc.append(&mut data);
+                acc
+            })
+    }
+
+    fn unpack_diff(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<f32> {
+        compressed_chain
+            .iter()
+            .cloned()
+            .enumerate()
+            .fold(vec![], |mut acc, (pocket_id, block)| {
+                let unpacker = DataBlockUnPacker::new(block.0);
+                let h = unpacker.hader();
+                assert_eq!(pocket_id as u32, h.this_block_id);
+                assert_eq!(
+                    (pocket_id as u32).checked_sub(1).unwrap_or_default(),
+                    h.prev_block_id
+                );
+
+                let mut data = unpacker.unpack_as::<f32>();
+                let mut prev = data[0];
+                data[1..].iter_mut().for_each(|v| {
+                    let this_value = prev + *v;
+                    prev = this_value;
+                    *v = this_value;
+                });
+
                 acc.append(&mut data);
                 acc
             })
