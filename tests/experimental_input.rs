@@ -9,7 +9,12 @@ mod test {
         std::fs::read_to_string(path)
             .unwrap()
             .split("\n")
-            .map(|s| s.trim().parse::<f32>().unwrap())
+            .map(|s| {
+                s.trim()
+                    .parse::<f32>()
+                    .map_err(|_| panic!("failed to parse \"{}\"", s))
+                    .unwrap()
+            })
             .collect()
     }
 
@@ -74,6 +79,61 @@ mod test {
 
     #[test]
     fn process_data_set() {
+        const BLOCK_SIZE: usize = 4096;
+
+        let experimental_data = readfile("tests/test_data/P1.txt");
+
+        let compressed_chain = compress(experimental_data.iter(), BLOCK_SIZE);
+        print_staticstics(&compressed_chain, BLOCK_SIZE);
+
+        let unpacked_data = unpack(compressed_chain);
+        assert_eq!(
+            &experimental_data[..unpacked_data.len()],
+            &unpacked_data[..]
+        );
+    }
+
+    #[test]
+    fn process_all_experimental_data() {
+        const BLOCK_SIZE: usize = 4096;
+
+        std::fs::read_dir("tests/test_data")
+            .unwrap()
+            .for_each(|file| {
+                if let Ok(f) = file {
+                    println!("File: {:?}", f.path());
+                    let experimental_data = readfile(f.path());
+
+                    let compressed_chain = compress(experimental_data.iter(), BLOCK_SIZE);
+                    print_staticstics(&compressed_chain, BLOCK_SIZE);
+
+                    let unpacked_data = unpack(compressed_chain);
+                    assert_eq!(
+                        &experimental_data[..unpacked_data.len()],
+                        &unpacked_data[..]
+                    );
+                }
+            });
+    }
+
+    fn new_packer(id: &mut u32, block_size: usize) -> DataBlockPacker {
+        let timstamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let packer = DataBlockPacker::new(
+            id.checked_sub(1).unwrap_or_default(),
+            *id,
+            timstamp,
+            block_size,
+        );
+        *id += 1;
+
+        packer
+    }
+
+    fn print_staticstics(compressed_chain: &Vec<(Vec<u8>, usize)>, block_size: usize) {
         #[derive(Default)]
         struct StaticticsItem {
             id: u32,
@@ -83,65 +143,22 @@ mod test {
             compress_ratio: f32,
         }
 
-        const BLOCK_SIZE: usize = 4096;
-
-        let experimental_data = readfile("tests/test_data/P1.txt");
-        let mut it = experimental_data.iter();
-        let mut current_block_id = 0u32;
-
-        let mut compressed_chain = vec![];
-
-        'compressor: loop {
-            let timstamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-
-            let mut packer = DataBlockPacker::new(
-                current_block_id.checked_sub(1).unwrap_or_default(),
-                current_block_id,
-                timstamp,
-                BLOCK_SIZE,
-            );
-            current_block_id += 1;
-
-            let mut src_size = 0;
-            let block = loop {
-                if let Some(v) = it.next() {
-                    match packer.push_val(*v) {
-                        self_recorder_packet::PushResult::Success => {
-                            src_size += std::mem::size_of::<f32>();
-                        }
-                        self_recorder_packet::PushResult::Full => {
-                            src_size += std::mem::size_of::<f32>();
-                            break packer.to_result().unwrap();
-                        }
-                        _ => panic!(),
-                    }
-                } else {
-                    // данные кончились, финализации нет, просто выход
-                    break 'compressor;
-                }
-            };
-            compressed_chain.push((block, src_size));
-        }
-
         let mut staticstics = compressed_chain
             .iter()
             .enumerate()
             .map(|(i, item)| StaticticsItem {
                 id: i as u32,
                 src_size: item.1,
-                compressed_size: BLOCK_SIZE, //item.0.len(),
+                compressed_size: block_size, //item.0.len(),
                 compress_ratio: item.0.len() as f32 / item.1 as f32 * 100.0,
-                usage_ratio: item.0.len() as f32 / BLOCK_SIZE as f32,
+                usage_ratio: item.0.len() as f32 / block_size as f32,
             })
             .collect::<Vec<_>>();
 
         staticstics.sort_by(|x, y| x.compress_ratio.total_cmp(&y.compress_ratio));
 
-        let worst_compres_ratio = staticstics.first().unwrap();
-        let best_compres_ratio = staticstics.last().unwrap();
+        let worst_compres_ratio = staticstics.last().unwrap();
+        let best_compres_ratio = staticstics.first().unwrap();
 
         let mut avg = staticstics
             .iter()
@@ -157,24 +174,61 @@ mod test {
         avg.compress_ratio /= staticstics.len() as f32;
 
         println!(
-            r#"Totoal input: {} bytes -> {} bytes compressed
+            r#"Totoal input: {} bytes -> {} bytes compressed ({} pages)
 Avarage compressed ratio: {:.2} %
 Avarage usage ratio: {:.2} % ({:.1} bytes)
 Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
-        "#,
+    "#,
             avg.src_size,
             avg.compressed_size,
+            staticstics.len(),
             avg.compress_ratio,
             avg.usage_ratio,
-            avg.usage_ratio * BLOCK_SIZE as f32,
+            avg.usage_ratio * block_size as f32,
             best_compres_ratio.id,
             best_compres_ratio.compress_ratio,
             worst_compres_ratio.id,
             worst_compres_ratio.compress_ratio,
         );
+    }
 
-        // unpack back
-        let unpacked_data = compressed_chain
+    fn compress<'a>(
+        mut it: impl Iterator<Item = &'a f32>,
+        block_size: usize,
+    ) -> Vec<(Vec<u8>, usize)> {
+        let mut current_block_id = 0u32;
+
+        let mut compressed_chain = vec![];
+
+        'compressor: loop {
+            let mut packer = new_packer(&mut current_block_id, block_size);
+
+            let mut src_size = 0;
+            let block = loop {
+                if let Some(v) = it.next() {
+                    match packer.push_val(*v) {
+                        self_recorder_packet::PushResult::Success => {
+                            src_size += std::mem::size_of::<f32>();
+                        }
+                        self_recorder_packet::PushResult::Full => {
+                            src_size += std::mem::size_of::<f32>();
+                            break packer.to_result().unwrap();
+                        }
+                        _ => panic!(),
+                    }
+                } else {
+                    // данные кончились, финализация не предусмотрена, просто выход
+                    break 'compressor;
+                }
+            };
+            compressed_chain.push((block, src_size));
+        }
+
+        compressed_chain
+    }
+
+    fn unpack(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<f32> {
+        compressed_chain
             .iter()
             .cloned()
             .enumerate()
@@ -190,7 +244,6 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
                 let mut data = unpacker.unpack_as::<f32>();
                 acc.append(&mut data);
                 acc
-            });
-        assert_eq!(&experimental_data[..unpacked_data.len()], &unpacked_data[..]);
+            })
     }
 }
