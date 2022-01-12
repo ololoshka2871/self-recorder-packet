@@ -139,10 +139,16 @@ mod test {
             })
             .collect::<Vec<_>>();
 
-        let compressed_chain = compress_diff(merged.iter(), BLOCK_SIZE);
+        let compressed_chain = compress(merged.iter(), BLOCK_SIZE);
+        println!("=== Plan compress ===");
         print_staticstics(&compressed_chain, BLOCK_SIZE);
-        let unpacked_data: Vec<u32> = unpack_diff(compressed_chain);
+        let compressed_diff_chain = compress_diff(merged.iter(), BLOCK_SIZE);
+        println!("=== Diff compress ===");
+        print_staticstics(&compressed_diff_chain, BLOCK_SIZE);
+        let unpacked_data_plan: Vec<u32> = unpack(compressed_chain);
+        let unpacked_data: Vec<u32> = unpack_diff(compressed_diff_chain);
 
+        assert_eq!(&unpacked_data_plan[..], &merged[..unpacked_data_plan.len()]);
         assert_eq!(&unpacked_data[..], &merged[..unpacked_data.len()]);
 
         let mut fp_up = vec![];
@@ -161,6 +167,125 @@ mod test {
                     ft_up.push(v);
                 } else {
                     break;
+                }
+            }
+        }
+
+        fp_up
+            .iter()
+            .enumerate()
+            .for_each(|(i, v)| assert_eq!(*v, fp[i * INTERLEAVE_RATIO.0 as usize]));
+        ft_up
+            .iter()
+            .enumerate()
+            .for_each(|(i, v)| assert_eq!(*v, ft[i * INTERLEAVE_RATIO.1 as usize]));
+    }
+
+    #[test]
+    fn code_decode_interleave_personal_diff() {
+        const BLOCK_SIZE: usize = 4096;
+        const INTERLEAVE_RATIO: (u32, u32) = (2, 3);
+        const F_REF: u32 = 10_000_000;
+
+        let fp = readfile("tests/test_data/FP1.txt");
+        let ft = readfile("tests/test_data/FT1.txt");
+
+        let p_target = fp[0].round() as u32;
+        let t_target = ft[0].round() as u32;
+
+        let fp = convert_to_results(fp, p_target, F_REF);
+        let ft = convert_to_results(ft, t_target, F_REF);
+
+        let merged = fp
+            .iter()
+            .zip(ft.iter())
+            .enumerate()
+            .flat_map(|(i, (fp, ft))| {
+                match (
+                    i as u32 % INTERLEAVE_RATIO.0 == 0,
+                    i as u32 % INTERLEAVE_RATIO.1 == 0,
+                ) {
+                    (false, false) => vec![],
+                    (false, true) => vec![*ft],
+                    (true, false) => vec![*fp],
+                    (true, true) => vec![*fp, *ft],
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let personal_diffed_merged = {
+            let mut prev_p = 0i32;
+            let mut prev_t = 0i32;
+            fp.iter()
+                .zip(ft.iter())
+                .enumerate()
+                .flat_map(|(i, (fp, ft))| {
+                    match (
+                        i as u32 % INTERLEAVE_RATIO.0 == 0,
+                        i as u32 % INTERLEAVE_RATIO.1 == 0,
+                    ) {
+                        (false, false) => vec![],
+                        (false, true) => {
+                            let _t = *ft as i32 - prev_t;
+                            prev_t = *ft as i32;
+                            vec![_t as u32]
+                        }
+                        (true, false) => {
+                            let _p = *fp as i32 - prev_p;
+                            prev_p = *fp as i32;
+                            vec![_p as u32]
+                        }
+                        (true, true) => {
+                            let _t = *ft as i32 - prev_t;
+                            prev_t = *ft as i32;
+                            let _p = *fp as i32 - prev_p;
+                            prev_p = *fp as i32;
+                            vec![_p as u32, _t as u32]
+                        }
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let compressed_chain = compress(merged.iter(), BLOCK_SIZE);
+        println!("=== Plan compress ===");
+        print_staticstics(&compressed_chain, BLOCK_SIZE);
+        let compressed_diff_chain = compress(personal_diffed_merged.iter(), BLOCK_SIZE);
+        println!("=== Personal diff compress ===");
+        print_staticstics(&compressed_diff_chain, BLOCK_SIZE);
+        let unpacked_data_plan: Vec<u32> = unpack(compressed_chain);
+        let unpacked_data: Vec<u32> = unpack(compressed_diff_chain);
+
+        assert_eq!(&unpacked_data_plan[..], &merged[..unpacked_data_plan.len()]);
+
+        let mut fp_up = vec![];
+        let mut ft_up = vec![];
+        {
+            let mut prev_p = unpacked_data[0];
+            let mut prev_t = unpacked_data[1];
+            fp_up.push(prev_p);
+            ft_up.push(prev_t);
+            let mut up_iter = unpacked_data.into_iter().skip(2);
+            for i in 1.. {
+                if i as u32 % INTERLEAVE_RATIO.0 == 0 {
+                    if let Some(v) = up_iter.next() {
+                        prev_p = prev_p
+                            .checked_add_signed(unsafe { core::mem::transmute(v) })
+                            .unwrap();
+                        fp_up.push(prev_p);
+                    } else {
+                        break;
+                    }
+                }
+                if i as u32 % INTERLEAVE_RATIO.1 == 0 {
+                    if let Some(v) = up_iter.next() {
+                        prev_t = prev_t
+                            .checked_add_signed(unsafe { core::mem::transmute(v) })
+                            .unwrap();
+                        ft_up.push(prev_t);
+                    } else {
+                        break;
+                    }
                 }
             }
         }
@@ -264,6 +389,41 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
         packer
     }
 
+    fn compress<'a>(
+        mut it: impl Iterator<Item = &'a u32>,
+        block_size: usize,
+    ) -> Vec<(Vec<u8>, usize)> {
+        let mut current_block_id = 0u32;
+
+        let mut compressed_chain = vec![];
+
+        'compressor: loop {
+            let mut packer = new_packer(&mut current_block_id, block_size);
+
+            let mut src_size = 0;
+            let block = loop {
+                if let Some(v) = it.next() {
+                    match packer.push_val(*v) {
+                        self_recorder_packet::PushResult::Success => {
+                            src_size += std::mem::size_of::<f32>();
+                        }
+                        self_recorder_packet::PushResult::Full => {
+                            src_size += std::mem::size_of::<f32>();
+                            break packer.to_result().unwrap();
+                        }
+                        _ => panic!(),
+                    }
+                } else {
+                    // данные кончились, финализация не предусмотрена, просто выход
+                    break 'compressor;
+                }
+            };
+            compressed_chain.push((block, src_size));
+        }
+
+        compressed_chain
+    }
+
     fn compress_diff<'a>(
         mut it: impl Iterator<Item = &'a u32>,
         block_size: usize,
@@ -301,6 +461,26 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
         }
 
         compressed_chain
+    }
+
+    fn unpack(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<u32> {
+        compressed_chain
+            .iter()
+            .cloned()
+            .enumerate()
+            .fold(vec![], |mut acc, (pocket_id, block)| {
+                let unpacker = DataBlockUnPacker::new(block.0);
+                let h = unpacker.hader();
+                assert_eq!(pocket_id as u32, h.this_block_id);
+                assert_eq!(
+                    (pocket_id as u32).checked_sub(1).unwrap_or_default(),
+                    h.prev_block_id
+                );
+
+                let mut data = unpacker.unpack_as::<u32>();
+                acc.append(&mut data);
+                acc
+            })
     }
 
     fn unpack_diff(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<u32> {
