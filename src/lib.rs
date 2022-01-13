@@ -10,8 +10,10 @@ pub struct DataPacketHeader {
 
     pub timestamp: u64,
 
-    pub p_target: u32,
-    pub t_target: u32,
+    pub targets: (u32, u32),
+
+    pub base_interval_ms: u32,
+    pub interleave_ratio: (u32, u32),
 
     pub t_cpu: f32,
     pub v_bat: f32,

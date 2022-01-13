@@ -27,7 +27,7 @@ mod test {
         let mut it = experimental_data.iter();
         let mut input_count = 0;
 
-        let mut block = DataBlockPacker::new(0, 0, 0x00000000, BLOCK_SIZE);
+        let mut block = DataBlockPacker::builder().set_size(BLOCK_SIZE).build();
 
         let result = loop {
             match block.push_val(it.next().unwrap()) {
@@ -55,7 +55,11 @@ mod test {
 
         let experimental_data = readfile("tests/test_data/T1.txt");
         let mut it = experimental_data.iter();
-        let mut block = DataBlockPacker::new(56, 57, 0x000100080, BLOCK_SIZE);
+        let mut block = DataBlockPacker::builder()
+            .set_ids(56, 57)
+            .set_timestamp(0x000100080)
+            .set_size(BLOCK_SIZE)
+            .build();
 
         let result = loop {
             match block.push_val(*it.next().unwrap()) {
@@ -142,17 +146,17 @@ mod test {
     }
 
     fn new_packer(id: &mut u32, block_size: usize) -> DataBlockPacker {
-        let timstamp = std::time::SystemTime::now()
+        let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
 
-        let packer = DataBlockPacker::new(
-            id.checked_sub(1).unwrap_or_default(),
-            *id,
-            timstamp,
-            block_size,
-        );
+        let packer = DataBlockPacker::builder()
+            .set_ids(id.checked_sub(1).unwrap_or_default(), *id)
+            .set_timestamp(timestamp)
+            .set_size(block_size)
+            .build();
+
         *id += 1;
 
         packer

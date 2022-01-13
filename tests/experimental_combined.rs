@@ -373,17 +373,16 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
     }
 
     fn new_packer(id: &mut u32, block_size: usize) -> DataBlockPacker {
-        let timstamp = std::time::SystemTime::now()
+        let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
 
-        let packer = DataBlockPacker::new(
-            id.checked_sub(1).unwrap_or_default(),
-            *id,
-            timstamp,
-            block_size,
-        );
+        let packer = DataBlockPacker::builder()
+            .set_ids(id.checked_sub(1).unwrap_or_default(), *id)
+            .set_timestamp(timestamp)
+            .set_size(block_size)
+            .build();
         *id += 1;
 
         packer

@@ -61,7 +61,7 @@ mod test {
 
         let mut generator = ResultGenerator::new();
         let mut input_count = 0;
-        let mut block = DataBlockPacker::new(0, 0, 0x00000000, BLOCK_SIZE);
+        let mut block = DataBlockPacker::builder().set_size(BLOCK_SIZE).build();
 
         let result = loop {
             match block.push_val(generator.next().unwrap()) {
@@ -86,7 +86,11 @@ mod test {
 
         let mut generator = ResultGenerator::new();
         let mut input_data = Vec::new();
-        let mut block = DataBlockPacker::new(35, 36, 0x01300aafa0170, BLOCK_SIZE);
+        let mut block = DataBlockPacker::builder()
+            .set_ids(35, 36)
+            .set_timestamp(0x01300aafa0170)
+            .set_size(BLOCK_SIZE)
+            .build();
 
         let src_header = block.header.clone();
 
@@ -109,7 +113,11 @@ mod test {
 
         assert_eq!(src_header, unpacker.hader());
         assert_eq!(input_data, unpacker.unpack_as());
-        println!("Packed {} values to block ({} bytes)", input_data.len(), res_len);
+        println!(
+            "Packed {} values to block ({} bytes)",
+            input_data.len(),
+            res_len
+        );
     }
 
     #[test]
@@ -118,7 +126,11 @@ mod test {
 
         let mut generator = ResultGenerator::new();
         let mut input_data = Vec::new();
-        let mut block = DataBlockPacker::new(45, 46, 0x71389aaf60180, BLOCK_SIZE);
+        let mut block = DataBlockPacker::builder()
+            .set_ids(45, 46)
+            .set_timestamp(0x71389aaf60180)
+            .set_size(BLOCK_SIZE)
+            .build();
 
         let src_header = block.header.clone();
 
@@ -142,6 +154,10 @@ mod test {
         assert_eq!(src_header, unpacker.hader());
         let unpacked = unpacker.unpack_as();
         assert_eq!(input_data, unpacked);
-        println!("Packed {} values to block ({} bytes)", input_data.len(), res_len);
+        println!(
+            "Packed {} values to block ({} bytes)",
+            input_data.len(),
+            res_len
+        );
     }
 }

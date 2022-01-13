@@ -12,6 +12,11 @@ pub struct DataBlockPacker {
     result: Option<Vec<u8>>,
 }
 
+pub struct DataBlockPackerBuilder {
+    header: DataPacketHeader,
+    size: usize,
+}
+
 #[derive(PartialEq, Debug)]
 pub enum PushResult {
     Success,
@@ -20,30 +25,83 @@ pub enum PushResult {
     Finished,
 }
 
-impl DataBlockPacker {
-    pub fn new(prev_block_id: u32, this_block_id: u32, timestamp: u64, size: usize) -> Self {
-        assert!(size > core::mem::size_of::<DataPacketHeader>());
+impl DataBlockPackerBuilder {
+    pub fn set_ids(mut self, prev_block_id: u32, this_block_id: u32) -> Self {
+        self.header.prev_block_id = prev_block_id;
+        self.header.this_block_id = this_block_id;
+        self
+    }
 
+    pub fn set_targets(mut self, targets: (u32, u32)) -> Self {
+        self.header.targets = targets;
+        self
+    }
+
+    pub fn set_write_cfg(mut self, base_interval_ms: u32, interleave_ratio: (u32, u32)) -> Self {
+        self.header.base_interval_ms = base_interval_ms;
+        self.header.interleave_ratio = interleave_ratio;
+        self
+    }
+
+    pub fn set_tcpu(mut self, t_cpu: f32) -> Self {
+        self.header.t_cpu = t_cpu;
+        self
+    }
+
+    pub fn set_vbat(mut self, v_bat: f32) -> Self {
+        self.header.v_bat = v_bat;
+        self
+    }
+
+    pub fn set_timestamp(mut self, timestamp: u64) -> Self {
+        self.header.timestamp = timestamp;
+        self
+    }
+
+    pub fn set_size(mut self, size: usize) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn build(self) -> DataBlockPacker {
+        assert!(self.size > core::mem::size_of::<DataPacketHeader>());
+        DataBlockPacker {
+            header: self.header,
+            encoder: Some(HeatshrinkEncoderToVec::dest(
+                Vec::with_capacity(self.size - core::mem::size_of::<DataPacketHeader>()),
+                core::mem::size_of::<DataPacketHeader>(),
+            )),
+            result: None,
+        }
+    }
+}
+
+impl Default for DataBlockPackerBuilder {
+    fn default() -> Self {
         Self {
             header: DataPacketHeader {
-                prev_block_id,
-                this_block_id,
+                prev_block_id: 0,
+                this_block_id: 0,
 
-                timestamp,
-                p_target: 0,
-                t_target: 0,
+                timestamp: 0,
+                targets: (0, 0),
+
+                base_interval_ms: 1000,
+                interleave_ratio: (1, 1),
 
                 t_cpu: 0.0,
                 v_bat: 0.0,
 
                 data_crc32: 0,
             },
-            encoder: Some(HeatshrinkEncoderToVec::dest(
-                Vec::with_capacity(size - core::mem::size_of::<DataPacketHeader>()),
-                core::mem::size_of::<DataPacketHeader>(),
-            )),
-            result: None,
+            size: 4096,
         }
+    }
+}
+
+impl DataBlockPacker {
+    pub fn builder() -> DataBlockPackerBuilder {
+        DataBlockPackerBuilder::default()
     }
 
     fn get_encoder(&mut self) -> Option<HeatshrinkEncoderToVec> {
@@ -121,25 +179,25 @@ mod tests {
     #[test]
     #[should_panic]
     fn create_too_small() {
-        let _ = DataBlockPacker::new(0, 0, 0u64, 16);
+        let _ = DataBlockPacker::builder().set_size(16).build();
     }
 
     #[test]
     fn crate_push() {
         const DATA_SIZE: usize = 4096;
-        let mut block = DataBlockPacker::new(0, 0, 0u64, DATA_SIZE);
+        let mut packer = DataBlockPacker::builder().set_size(DATA_SIZE).build();
 
         for i in 0.. {
-            match block.push_byte((i & 0xff) as u8) {
+            match packer.push_byte((i & 0xff) as u8) {
                 PushResult::Success => {}
                 PushResult::Full => break,
                 _ => panic!(),
             }
         }
 
-        assert_eq!(block.push_byte(0), PushResult::Finished);
+        assert_eq!(packer.push_byte(0), PushResult::Finished);
 
-        let res = block.to_result().unwrap();
+        let res = packer.to_result().unwrap();
         assert!(res.len() > DATA_SIZE / 2 && res.len() <= DATA_SIZE);
     }
 }
