@@ -28,11 +28,29 @@ impl DataBlockUnPacker {
         res
     }
 
+    #[cfg(feature = "unpacker")]
+    pub fn verify(&self) -> bool {
+        use crc32fast::Hasher;
+
+        let header = self.hader();
+
+        let mut hasher = Hasher::new();
+        hasher.update(
+            &self.data[core::mem::size_of::<DataPacketHeader>()
+                ..(core::mem::size_of::<DataPacketHeader>() + header.data_len as usize)],
+        );
+        let checksum = hasher.finalize();
+
+        header.data_crc32 == checksum
+    }
+
     pub fn unpack_data(&self) -> Vec<u8> {
+        let header = self.hader();
         let decoder = HeatshrinkDecoder::source(
             self.data
                 .iter()
                 .skip(core::mem::size_of::<DataPacketHeader>())
+                .take(header.data_len as usize)
                 .cloned(),
         );
 

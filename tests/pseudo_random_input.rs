@@ -70,7 +70,7 @@ mod test {
                 }
                 self_recorder_packet::PushResult::Full => {
                     input_count += std::mem::size_of::<u32>();
-                    break block.to_result().unwrap();
+                    break block.to_result_trimmed(|_| 0).unwrap();
                 }
                 _ => panic!(),
             }
@@ -92,8 +92,6 @@ mod test {
             .set_size(BLOCK_SIZE)
             .build();
 
-        let src_header = block.header.clone();
-
         let result = loop {
             let v = generator.next().unwrap();
             match block.push_val(v) {
@@ -102,7 +100,7 @@ mod test {
                 }
                 self_recorder_packet::PushResult::Full => {
                     input_data.push(v);
-                    break block.to_result().unwrap();
+                    break block.to_result_trimmed(|_| 0).unwrap();
                 }
                 _ => panic!(),
             }
@@ -111,7 +109,6 @@ mod test {
         let res_len = result.len();
         let unpacker = DataBlockUnPacker::new(result);
 
-        assert_eq!(src_header, unpacker.hader());
         assert_eq!(input_data, unpacker.unpack_as());
         println!(
             "Packed {} values to block ({} bytes)",
@@ -132,8 +129,6 @@ mod test {
             .set_size(BLOCK_SIZE)
             .build();
 
-        let src_header = block.header.clone();
-
         let result = loop {
             let v = generator.next().unwrap() as f32 / INITIAL_RESULT as f32;
             match block.push_val(v) {
@@ -142,7 +137,9 @@ mod test {
                 }
                 self_recorder_packet::PushResult::Full => {
                     input_data.push(v);
-                    break block.to_result().unwrap();
+                    break block
+                        .to_result_trimmed(|_| 0)
+                        .unwrap();
                 }
                 _ => panic!(),
             }
@@ -151,7 +148,6 @@ mod test {
         let res_len = result.len();
         let unpacker = DataBlockUnPacker::new(result);
 
-        assert_eq!(src_header, unpacker.hader());
         let unpacked = unpacker.unpack_as();
         assert_eq!(input_data, unpacked);
         println!(

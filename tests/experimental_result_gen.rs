@@ -216,7 +216,7 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
                         }
                         self_recorder_packet::PushResult::Full => {
                             src_size += std::mem::size_of::<f32>();
-                            break packer.to_result().unwrap();
+                            break packer.to_result_trimmed(|_| 0).unwrap();
                         }
                         _ => panic!(),
                     }
@@ -255,7 +255,7 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
                         }
                         self_recorder_packet::PushResult::Full => {
                             src_size += std::mem::size_of::<f32>();
-                            break packer.to_result().unwrap();
+                            break packer.to_result_trimmed(|_| 0).unwrap();
                         }
                         _ => panic!(),
                     }
@@ -292,8 +292,7 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
 
     fn unpack_diff(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<u32> {
         compressed_chain
-            .iter()
-            .cloned()
+            .into_iter()
             .enumerate()
             .fold(vec![], |mut acc, (pocket_id, block)| {
                 let unpacker = DataBlockUnPacker::new(block.0);

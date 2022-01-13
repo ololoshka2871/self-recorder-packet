@@ -32,12 +32,12 @@ impl DataBlockPackerBuilder {
         self
     }
 
-    pub fn set_targets(mut self, targets: (u32, u32)) -> Self {
+    pub fn set_targets(mut self, targets: [u32; 2]) -> Self {
         self.header.targets = targets;
         self
     }
 
-    pub fn set_write_cfg(mut self, base_interval_ms: u32, interleave_ratio: (u32, u32)) -> Self {
+    pub fn set_write_cfg(mut self, base_interval_ms: u32, interleave_ratio: [u32; 2]) -> Self {
         self.header.base_interval_ms = base_interval_ms;
         self.header.interleave_ratio = interleave_ratio;
         self
@@ -68,7 +68,7 @@ impl DataBlockPackerBuilder {
         DataBlockPacker {
             header: self.header,
             encoder: Some(HeatshrinkEncoderToVec::dest(
-                Vec::with_capacity(self.size - core::mem::size_of::<DataPacketHeader>()),
+                Vec::with_capacity(self.size),
                 core::mem::size_of::<DataPacketHeader>(),
             )),
             result: None,
@@ -84,14 +84,15 @@ impl Default for DataBlockPackerBuilder {
                 this_block_id: 0,
 
                 timestamp: 0,
-                targets: (0, 0),
+                targets: [0, 0],
 
                 base_interval_ms: 1000,
-                interleave_ratio: (1, 1),
+                interleave_ratio: [1, 1],
 
                 t_cpu: 0.0,
                 v_bat: 0.0,
 
+                data_len: 0,
                 data_crc32: 0,
             },
             size: 4096,
@@ -156,9 +157,29 @@ impl DataBlockPacker {
         }
     }
 
-    pub fn to_result(self) -> Option<Vec<u8>> {
+    pub fn to_result_trimmed<CrcCalc: FnOnce(&[u8]) -> u32>(mut self, f: CrcCalc) -> Option<Vec<u8>> {
         if let Some(mut d) = self.result {
+            self.header.data_len = (d.len() - core::mem::size_of::<DataPacketHeader>()) as u32;
+            self.header.data_crc32 = f(&d[core::mem::size_of::<DataPacketHeader>()..]);
             unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &self.header,
+                    d.as_mut_ptr() as *mut DataPacketHeader,
+                    1,
+                )
+            };
+            Some(d)
+        } else {
+            None
+        }
+    }
+
+    pub fn to_result_full<CrcCalc: FnOnce(&[u8]) -> u32>(mut self, f: CrcCalc) -> Option<Vec<u8>> {
+        if let Some(mut d) = self.result {
+            self.header.data_len = (d.len() - core::mem::size_of::<DataPacketHeader>()) as u32;
+            self.header.data_crc32 = f(&d[core::mem::size_of::<DataPacketHeader>()..]);
+            unsafe {
+                d.set_len(d.capacity());
                 core::ptr::copy_nonoverlapping(
                     &self.header,
                     d.as_mut_ptr() as *mut DataPacketHeader,
@@ -183,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn crate_push() {
+    fn crate_push_trimmed() {
         const DATA_SIZE: usize = 4096;
         let mut packer = DataBlockPacker::builder().set_size(DATA_SIZE).build();
 
@@ -197,7 +218,26 @@ mod tests {
 
         assert_eq!(packer.push_byte(0), PushResult::Finished);
 
-        let res = packer.to_result().unwrap();
+        let res = packer.to_result_trimmed(|_| 0).unwrap();
         assert!(res.len() > DATA_SIZE / 2 && res.len() <= DATA_SIZE);
+    }
+
+    #[test]
+    fn crate_push_full() {
+        const DATA_SIZE: usize = 4096;
+        let mut packer = DataBlockPacker::builder().set_size(DATA_SIZE).build();
+
+        for i in 0.. {
+            match packer.push_byte((i & 0xff) as u8) {
+                PushResult::Success => {}
+                PushResult::Full => break,
+                _ => panic!(),
+            }
+        }
+
+        assert_eq!(packer.push_byte(0), PushResult::Finished);
+
+        let res = packer.to_result_full(|_| 0).unwrap();
+        assert_eq!(res.len(), DATA_SIZE);
     }
 }

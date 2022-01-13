@@ -193,22 +193,22 @@ mod test {
         let p_target = fp[0].round() as u32;
         let t_target = ft[0].round() as u32;
 
-        let fp = convert_to_results(fp, p_target, F_REF);
-        let ft = convert_to_results(ft, t_target, F_REF);
+        let res_fp = convert_to_results(fp, p_target, F_REF);
+        let res_ft = convert_to_results(ft, t_target, F_REF);
 
-        let merged = fp
+        let merged = res_fp
             .iter()
-            .zip(ft.iter())
+            .zip(res_ft.iter())
             .enumerate()
-            .flat_map(|(i, (fp, ft))| {
+            .flat_map(|(i, (r_fp, r_ft))| {
                 match (
                     i as u32 % INTERLEAVE_RATIO.0 == 0,
                     i as u32 % INTERLEAVE_RATIO.1 == 0,
                 ) {
                     (false, false) => vec![],
-                    (false, true) => vec![*ft],
-                    (true, false) => vec![*fp],
-                    (true, true) => vec![*fp, *ft],
+                    (false, true) => vec![*r_ft],
+                    (true, false) => vec![*r_fp],
+                    (true, true) => vec![*r_fp, *r_ft],
                 }
             })
             .collect::<Vec<_>>();
@@ -216,8 +216,8 @@ mod test {
         let personal_diffed_merged = {
             let mut prev_p = 0i32;
             let mut prev_t = 0i32;
-            fp.iter()
-                .zip(ft.iter())
+            res_fp.iter()
+                .zip(res_ft.iter())
                 .enumerate()
                 .flat_map(|(i, (fp, ft))| {
                     match (
@@ -293,11 +293,11 @@ mod test {
         fp_up
             .iter()
             .enumerate()
-            .for_each(|(i, v)| assert_eq!(*v, fp[i * INTERLEAVE_RATIO.0 as usize]));
+            .for_each(|(i, v)| assert_eq!(*v, res_fp[i * INTERLEAVE_RATIO.0 as usize]));
         ft_up
             .iter()
             .enumerate()
-            .for_each(|(i, v)| assert_eq!(*v, ft[i * INTERLEAVE_RATIO.1 as usize]));
+            .for_each(|(i, v)| assert_eq!(*v, res_ft[i * INTERLEAVE_RATIO.1 as usize]));
     }
 
     fn convert_to_results(experimental_data: Vec<f32>, target: u32, f_ref: u32) -> Vec<u32> {
@@ -408,7 +408,7 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
                         }
                         self_recorder_packet::PushResult::Full => {
                             src_size += std::mem::size_of::<f32>();
-                            break packer.to_result().unwrap();
+                            break packer.to_result_trimmed(|_| 0).unwrap();
                         }
                         _ => panic!(),
                     }
@@ -447,7 +447,7 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
                         }
                         self_recorder_packet::PushResult::Full => {
                             src_size += std::mem::size_of::<f32>();
-                            break packer.to_result().unwrap();
+                            break packer.to_result_trimmed(|_| 0).unwrap();
                         }
                         _ => panic!(),
                     }
@@ -484,8 +484,7 @@ Compression: Best {}: {:.2}%, Worst: {}: {:.2} %
 
     fn unpack_diff(compressed_chain: Vec<(Vec<u8>, usize)>) -> Vec<u32> {
         compressed_chain
-            .iter()
-            .cloned()
+            .into_iter()
             .enumerate()
             .fold(vec![], |mut acc, (pocket_id, block)| {
                 let unpacker = DataBlockUnPacker::new(block.0);

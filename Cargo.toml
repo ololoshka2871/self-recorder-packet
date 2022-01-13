@@ -1,13 +1,17 @@
 [package]
 authors = ["ololoshka2871"]
 name = "self-recorder-packet"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2018"
 
 [dependencies]
 heatshrink-rust = { git = "https://github.com/ololoshka2871/heatshrink.rs.git" }
-
-[build-dependencies]
+crc32fast = { version = "1.3.0", optional = true }
+tempdir = { version = "0.3.7", optional = true }
 
 [dev-dependencies]
 rand = "0.8"
+
+[features]
+unpacker = ["crc32fast", "tempdir"]
+default = ["unpacker"]
