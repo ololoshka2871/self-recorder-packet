@@ -1,7 +1,7 @@
 #[cfg(feature = "unpacker")]
 #[cfg(unix)]
 mod test {
-    use std::{convert::TryInto, path::Path};
+    use std::{convert::TryInto, path::Path, time::Duration};
 
     use self_recorder_packet::{unpack_pages, DataBlockPacker};
 
@@ -63,12 +63,8 @@ mod test {
         let mut storage: Vec<[u8; BLOCK_SIZE]> = Vec::new();
 
         let mut id = 0u32;
+        let mut timestamp = Duration::new(0, 0);
         'compressor: loop {
-            let timestamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-
             let (targets, start_pair) = if let Some((fp, ft)) = src.next() {
                 ([fp.round() as u32, ft.round() as u32], [fp, ft])
             } else {
@@ -77,7 +73,7 @@ mod test {
 
             let mut packer = DataBlockPacker::builder()
                 .set_ids(id.checked_sub(1).unwrap_or_default(), id)
-                .set_timestamp(timestamp)
+                .set_timestamp(timestamp.as_millis() as u64)
                 .set_write_cfg(BASE_INTERVAL_MS, INTERLEAVE_RATIO)
                 .set_targets(targets)
                 .set_size(BLOCK_SIZE)
@@ -104,6 +100,9 @@ mod test {
                                 .try_into()
                                 .unwrap(),
                         );
+                        timestamp = timestamp
+                            .checked_add(Duration::from_millis((BASE_INTERVAL_MS * counter) as u64))
+                            .unwrap();
                         break 'page;
                     }
                 } else {

@@ -1,5 +1,5 @@
 use core::iter::FromIterator;
-use std::{fs::File, io::Write, path::Path, time::Duration};
+use std::{fmt::Display, fs::File, io::Write, path::Path, time::Duration};
 
 use alloc::vec::Vec;
 
@@ -18,6 +18,40 @@ pub struct PageData {
     pub ft: Vec<Record>,
 }
 
+struct PrettyDuration(Duration);
+
+impl Display for PrettyDuration {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const SEC_PER_MINUTE: u64 = 60;
+        const MIN_PER_HOUR: u64 = 60;
+        const HOURS_PER_DAY: u64 = 24;
+
+        let mut f = self.0;
+        let days = self.0.as_secs() / (SEC_PER_MINUTE * MIN_PER_HOUR * HOURS_PER_DAY);
+        if days > 0 {
+            formatter.write_fmt(format_args!("{} d ", days))?;
+        }
+        f = f - Duration::from_secs(days * SEC_PER_MINUTE * MIN_PER_HOUR * HOURS_PER_DAY);
+
+        let hours = f.as_secs() / (SEC_PER_MINUTE * MIN_PER_HOUR);
+        formatter.write_fmt(format_args!("{:02}:", hours))?;
+        f = f - Duration::from_secs(hours * SEC_PER_MINUTE * MIN_PER_HOUR);
+
+        let minutes = f.as_secs() / SEC_PER_MINUTE;
+        formatter.write_fmt(format_args!("{:02}:", minutes))?;
+        f = f - Duration::from_secs(minutes * SEC_PER_MINUTE);
+
+        let sec = f.as_secs();
+        formatter.write_fmt(format_args!("{:02}.", sec))?;
+        f = f - Duration::from_secs(sec);
+
+        let ms = f.as_millis() as u16;
+        formatter.write_fmt(format_args!("{:03}.", ms))?;
+
+        Ok(())
+    }
+}
+
 impl PageData {
     pub fn save_as_csv<P: AsRef<Path>>(&self, file: P) -> std::io::Result<()> {
         let mut file = File::create(file)?;
@@ -34,8 +68,11 @@ impl PageData {
             ))?;
         }
 
-        let start = Duration::from_secs(self.header.timestamp);
-        file.write_fmt(format_args!("Время начала страницы;{:?}\n", start))?;
+        let start = Duration::from_millis(self.header.timestamp);
+        file.write_fmt(format_args!(
+            "Время начала страницы;{}\n",
+            PrettyDuration(start)
+        ))?;
         file.write_fmt(format_args!(
             "Базовый интервал;{};мс.\n",
             self.header.base_interval_ms
@@ -62,15 +99,15 @@ impl PageData {
             };
 
             file.write_fmt(format_args!(
-                "{:?};{:.6};{:.6}\n",
-                Duration::from_millis(self.header.timestamp * 1_000u64,),
+                "{};{:.6};{:.6}\n",
+                PrettyDuration(Duration::from_millis(self.header.timestamp)),
                 c_fp.freq,
                 c_ft.freq
             ))?;
 
             for i in 1.. {
                 let timstamp = Duration::from_millis(
-                    self.header.timestamp * 1_000 + (i * self.header.base_interval_ms) as u64,
+                    self.header.timestamp + (i * self.header.base_interval_ms) as u64,
                 );
                 let mut has_result = false;
 
@@ -94,8 +131,10 @@ impl PageData {
 
                 if has_result {
                     file.write_fmt(format_args!(
-                        "{:?};{:.6};{:.6}\n",
-                        timstamp, c_fp.freq, c_ft.freq
+                        "{};{:.6};{:.6}\n",
+                        PrettyDuration(timstamp),
+                        c_fp.freq,
+                        c_ft.freq
                     ))?
                 }
             }
