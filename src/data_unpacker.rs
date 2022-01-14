@@ -61,6 +61,13 @@ impl PageData {
                 Record::default()
             };
 
+            file.write_fmt(format_args!(
+                "{:?};{:.6};{:.6}\n",
+                Duration::from_millis(self.header.timestamp * 1_000u64,),
+                c_fp.freq,
+                c_ft.freq
+            ))?;
+
             for i in 1.. {
                 let timstamp = Duration::from_millis(
                     self.header.timestamp * 1_000 + (i * self.header.base_interval_ms) as u64,
@@ -86,7 +93,10 @@ impl PageData {
                 }
 
                 if has_result {
-                    file.write_fmt(format_args!("{:?};{:.6};{:.6}\n", timstamp, c_fp.freq, c_ft.freq))?
+                    file.write_fmt(format_args!(
+                        "{:?};{:.6};{:.6}\n",
+                        timstamp, c_fp.freq, c_ft.freq
+                    ))?
                 }
             }
         }

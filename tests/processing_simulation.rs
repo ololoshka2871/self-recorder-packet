@@ -69,8 +69,8 @@ mod test {
                 .unwrap()
                 .as_secs();
 
-            let targets = if let Some((fp, ft)) = src.next() {
-                [fp.round() as u32, ft.round() as u32]
+            let (targets, start_pair) = if let Some((fp, ft)) = src.next() {
+                ([fp.round() as u32, ft.round() as u32], [fp, ft])
             } else {
                 break;
             };
@@ -85,6 +85,8 @@ mod test {
             id += 1;
 
             let mut prevs = [0i32, 0];
+            push_value(&mut packer, 0, 0, &start_pair, &mut prevs, F_REF);
+            push_value(&mut packer, 0, 1, &start_pair, &mut prevs, F_REF);
             'page: for counter in 1u32.. {
                 if let Some((fp, ft)) = src.next() {
                     if push_value(&mut packer, counter, 0, &[fp, ft], &mut prevs, F_REF)
@@ -113,7 +115,7 @@ mod test {
         println!("Compressed {} pages", storage.len());
 
         // Типо прочитано из файла
-        let storage = storage.iter().flatten().cloned().collect::<Vec<_>>();
+        let storage = storage.into_iter().flatten().collect::<Vec<_>>();
 
         let unpacked_pages = unpack_pages(storage.as_slice(), BLOCK_SIZE, F_REF as f32);
         let dir =
