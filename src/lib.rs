@@ -38,3 +38,7 @@ pub use data_block_unpacker::DataBlockUnPacker;
 mod data_unpacker;
 #[cfg(feature = "unpacker")]
 pub use data_unpacker::*;
+
+// https://github.com/sdleffler/empty-box-rs
+mod empty_box;
+pub use empty_box::EmptyBox;

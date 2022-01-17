@@ -1,14 +1,12 @@
-use core::mem::swap;
-
 use alloc::vec::Vec;
 
 use heatshrink_rust::encoder_to_vec::HeatshrinkEncoderToVec;
 
-use crate::DataPacketHeader;
+use crate::{DataPacketHeader, EmptyBox};
 
 pub struct DataBlockPacker {
     pub header: DataPacketHeader,
-    encoder: Option<HeatshrinkEncoderToVec>,
+    encoder: Option<Box<HeatshrinkEncoderToVec>>,
     result: Option<Vec<u8>>,
 }
 
@@ -67,10 +65,10 @@ impl DataBlockPackerBuilder {
         assert!(self.size > core::mem::size_of::<DataPacketHeader>());
         DataBlockPacker {
             header: self.header,
-            encoder: Some(HeatshrinkEncoderToVec::dest(
+            encoder: Some(Box::new(HeatshrinkEncoderToVec::dest(
                 Vec::with_capacity(self.size),
                 core::mem::size_of::<DataPacketHeader>(),
-            )),
+            ))),
             result: None,
         }
     }
@@ -105,20 +103,22 @@ impl DataBlockPacker {
         DataBlockPackerBuilder::default()
     }
 
-    fn get_encoder(&mut self) -> Option<HeatshrinkEncoderToVec> {
-        let mut enc = None;
-        swap(&mut self.encoder, &mut enc);
-        enc
+    fn get_encoder(&mut self) -> Option<&mut HeatshrinkEncoderToVec> {
+        if let Some(inner) = self.encoder.as_mut() {
+            Some(inner.as_mut())
+        } else {
+            return None;
+        }
     }
 
     fn process_push_result(&mut self, res: heatshrink_rust::encoder_to_vec::Result) -> PushResult {
         match res {
-            heatshrink_rust::encoder_to_vec::Result::Ok(enc) => {
-                self.encoder = Some(enc);
-                PushResult::Success
-            }
-            heatshrink_rust::encoder_to_vec::Result::Done(res) => {
-                self.result = Some(res);
+            heatshrink_rust::encoder_to_vec::Result::Ok => PushResult::Success,
+            heatshrink_rust::encoder_to_vec::Result::Done => {
+                let enc = std::mem::replace(&mut self.encoder, None).unwrap();
+                let (enc, _) = EmptyBox::take(enc);
+                self.result = Some(enc.result());
+                //self.result = Some(self.encoder.map(|f| f.result()).unwrap_or_default());
                 PushResult::Full
             }
             heatshrink_rust::encoder_to_vec::Result::Overflow => PushResult::Overflow,
@@ -129,7 +129,8 @@ impl DataBlockPacker {
     /// return true is success
     pub fn push_bytes(&mut self, data: &[u8]) -> PushResult {
         if let Some(enc) = self.get_encoder() {
-            self.process_push_result(enc.push_bytes(data))
+            let res = enc.push_bytes(data);
+            self.process_push_result(res)
         } else {
             PushResult::Finished
         }
@@ -139,9 +140,8 @@ impl DataBlockPacker {
     /// return true is success
     pub fn push_byte(&mut self, byte: u8) -> PushResult {
         if let Some(enc) = self.get_encoder() {
-            self.process_push_result(
-                enc.push_bytes(unsafe { core::slice::from_raw_parts(&byte, 1) }),
-            )
+            let res = enc.push_bytes(unsafe { core::slice::from_raw_parts(&byte, 1) });
+            self.process_push_result(res)
         } else {
             PushResult::Finished
         }
@@ -151,13 +151,17 @@ impl DataBlockPacker {
     /// return true is success
     pub fn push_val<T: Copy>(&mut self, v: T) -> PushResult {
         if let Some(enc) = self.get_encoder() {
-            self.process_push_result(enc.push(v))
+            let res = enc.push(v);
+            self.process_push_result(res)
         } else {
             PushResult::Finished
         }
     }
 
-    pub fn to_result_trimmed<CrcCalc: FnOnce(&[u8]) -> u32>(mut self, f: CrcCalc) -> Option<Vec<u8>> {
+    pub fn to_result_trimmed<CrcCalc: FnOnce(&[u8]) -> u32>(
+        mut self,
+        f: CrcCalc,
+    ) -> Option<Vec<u8>> {
         if let Some(mut d) = self.result {
             self.header.data_len = (d.len() - core::mem::size_of::<DataPacketHeader>()) as u32;
             self.header.data_crc32 = f(&d[core::mem::size_of::<DataPacketHeader>()..]);
