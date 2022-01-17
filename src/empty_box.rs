@@ -77,6 +77,7 @@ impl<T> EmptyBox<T> {
 #[cfg(test)]
 mod test {
     use core::cell::Cell;
+    use core::mem;
 
     use super::*;
 
