@@ -40,5 +40,7 @@ mod data_unpacker;
 pub use data_unpacker::*;
 
 // https://github.com/sdleffler/empty-box-rs
+#[cfg(feature = "unpacker")]
 mod empty_box;
+#[cfg(feature = "unpacker")]
 pub use empty_box::EmptyBox;

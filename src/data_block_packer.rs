@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 
 use heatshrink_rust::encoder_to_vec::HeatshrinkEncoderToVec;
@@ -115,7 +116,7 @@ impl DataBlockPacker {
         match res {
             heatshrink_rust::encoder_to_vec::Result::Ok => PushResult::Success,
             heatshrink_rust::encoder_to_vec::Result::Done => {
-                let enc = std::mem::replace(&mut self.encoder, None).unwrap();
+                let enc = core::mem::replace(&mut self.encoder, None).unwrap();
                 let (enc, _) = EmptyBox::take(enc);
                 self.result = Some(enc.result());
                 //self.result = Some(self.encoder.map(|f| f.result()).unwrap_or_default());

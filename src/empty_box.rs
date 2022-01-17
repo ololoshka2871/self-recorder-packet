@@ -29,6 +29,7 @@
 
 use core::mem;
 use core::ptr;
+use alloc::boxed::Box;
 
 
 /// An "emptied" `Box`. Constructed via `EmptyBox::take()`, an `EmptyBox<T>` is
@@ -75,7 +76,7 @@ impl<T> EmptyBox<T> {
 
 #[cfg(test)]
 mod test {
-    use std::cell::Cell;
+    use core::cell::Cell;
 
     use super::*;
 
