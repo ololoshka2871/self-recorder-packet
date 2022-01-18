@@ -148,7 +148,7 @@ pub fn calc_f(target: u32, result: u32, fref: f32) -> f32 {
     fref * target as f32 / result as f32
 }
 
-pub fn unpack_pages(data: &[u8], page_size: usize, fref: f32) -> Vec<PageData> {
+pub fn unpack_pages(data: &[u8], page_size: usize, fref: f32, ignore_inconsistant: bool) -> Vec<PageData> {
     let data = if data.len() % page_size == 0 {
         data
     } else {
@@ -171,7 +171,7 @@ pub fn unpack_pages(data: &[u8], page_size: usize, fref: f32) -> Vec<PageData> {
                 ft: Vec::new(),
             };
 
-            if result.consistant {
+            if result.consistant && !ignore_inconsistant {
                 // unpack data
                 let mut data_iter = unpacker.unpack_as::<u32>().into_iter();
 

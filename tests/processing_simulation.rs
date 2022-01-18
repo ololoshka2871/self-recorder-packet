@@ -116,7 +116,7 @@ mod test {
         // Типо прочитано из файла
         let storage = storage.into_iter().flatten().collect::<Vec<_>>();
 
-        let unpacked_pages = unpack_pages(storage.as_slice(), BLOCK_SIZE, F_REF as f32);
+        let unpacked_pages = unpack_pages(storage.as_slice(), BLOCK_SIZE, F_REF as f32, false);
         let dir =
             tempdir::TempDir::new("compress_simulation").expect("Failed to create result dir");
 
