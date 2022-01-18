@@ -34,12 +34,16 @@ impl DataBlockUnPacker {
 
         let header = self.hader();
 
-        let mut hasher = Hasher::new();
-        hasher.update(
-            &self.data[core::mem::size_of::<DataPacketHeader>()
-                ..(core::mem::size_of::<DataPacketHeader>() + header.data_len as usize)],
-        );
-        let checksum = hasher.finalize();
+        let checksum = if (header.data_len as usize) < self.data.len() {
+            let mut hasher = Hasher::new();
+            hasher.update(
+                &self.data[core::mem::size_of::<DataPacketHeader>()
+                    ..(core::mem::size_of::<DataPacketHeader>() + header.data_len as usize)],
+            );
+            hasher.finalize()
+        } else {
+            0
+        };
 
         header.data_crc32 == checksum
     }
