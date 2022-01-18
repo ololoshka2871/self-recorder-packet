@@ -171,7 +171,7 @@ pub fn unpack_pages(data: &[u8], page_size: usize, fref: f32, ignore_inconsistan
                 ft: Vec::new(),
             };
 
-            if result.consistant && !ignore_inconsistant {
+            if ignore_inconsistant || result.consistant  {
                 // unpack data
                 let mut data_iter = unpacker.unpack_as::<u32>().into_iter();
 
