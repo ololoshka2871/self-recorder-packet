@@ -46,7 +46,7 @@ impl Display for PrettyDuration {
         f = f - Duration::from_secs(sec);
 
         let ms = f.as_millis() as u16;
-        formatter.write_fmt(format_args!("{:03}.", ms))?;
+        formatter.write_fmt(format_args!("{:03}", ms))?;
 
         Ok(())
     }
@@ -82,7 +82,7 @@ impl PageData {
             self.header.t_cpu, self.header.v_bat
         ))?;
 
-        file.write("Частота давления, Гц;Частота температуры, Гц\n".as_bytes())?;
+        file.write("Время;Частота давления, Гц;Частота температуры, Гц\n".as_bytes())?;
 
         {
             let mut p_iter = self.fp.iter();
