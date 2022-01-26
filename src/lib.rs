@@ -5,20 +5,32 @@ extern crate alloc;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct DataPacketHeader {
+    /// номер этого блока
     pub prev_block_id: u32,
+    /// номер предыдущего блока в цепочке
     pub this_block_id: u32,
 
+    /// таймштамп, время от старта записи
     pub timestamp: u64,
+    /// опорная частота, она могла меняться между цепочками
+    pub f_ref: f32,
 
+    /// таргеты
     pub targets: [u32; 2],
 
+    /// базовый интервал записи, мс
     pub base_interval_ms: u32,
+    /// делители базового интервала
     pub interleave_ratio: [u32; 2],
 
+    /// температура процессора
     pub t_cpu: f32,
+    /// заряд батареи
     pub v_bat: f32,
 
+    /// Фактическое количество значащих байт в блоке, не считая еиспользованные с конц байты
     pub data_len: u32,
+    /// CRC32 (zlib)
     pub data_crc32: u32,
 }
 

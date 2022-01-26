@@ -148,7 +148,11 @@ pub fn calc_f(target: u32, result: u32, fref: f32) -> f32 {
     fref * target as f32 / result as f32
 }
 
-pub fn unpack_pages(data: &[u8], page_size: usize, fref: f32, ignore_inconsistant: bool) -> Vec<PageData> {
+/// data - данные
+/// page_size - размер страницы
+/// fref - опорная частота из настроек
+/// ignore_inconsistant - игнорировать ошибки и продлолжать
+pub fn unpack_pages(data: &[u8], page_size: usize, fref_base: f32, ignore_inconsistant: bool) -> Vec<PageData> {
     let data = if data.len() % page_size == 0 {
         data
     } else {
@@ -169,6 +173,12 @@ pub fn unpack_pages(data: &[u8], page_size: usize, fref: f32, ignore_inconsistan
                 consistant: unpacker.verify(),
                 fp: Vec::new(),
                 ft: Vec::new(),
+            };
+
+            let fref = if result.header.f_ref.is_normal() {
+                result.header.f_ref
+            } else {
+                fref_base
             };
 
             if ignore_inconsistant || result.consistant  {

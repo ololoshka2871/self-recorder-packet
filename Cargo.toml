@@ -1,7 +1,7 @@
 [package]
 authors = ["ololoshka2871"]
 name = "self-recorder-packet"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2018"
 
 [dependencies]

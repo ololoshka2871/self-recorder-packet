@@ -31,6 +31,11 @@ impl DataBlockPackerBuilder {
         self
     }
 
+    pub fn set_fref(mut self, f_ref: f32) -> Self {
+        self.header.f_ref = f_ref;
+        self
+    }
+
     pub fn set_targets(mut self, targets: [u32; 2]) -> Self {
         self.header.targets = targets;
         self
@@ -83,6 +88,7 @@ impl Default for DataBlockPackerBuilder {
                 this_block_id: 0,
 
                 timestamp: 0,
+                f_ref: 0.0,
                 targets: [0, 0],
 
                 base_interval_ms: 1000,
