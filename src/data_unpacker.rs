@@ -18,7 +18,7 @@ pub struct PageData {
     pub ft: Vec<Record>,
 }
 
-pub struct PrettyDuration(Duration);
+pub struct PrettyDuration(pub Duration);
 
 impl Display for PrettyDuration {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
