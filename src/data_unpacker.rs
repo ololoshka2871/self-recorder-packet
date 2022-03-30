@@ -188,6 +188,11 @@ pub fn unpack_pages(data: &[u8], page_size: usize, fref_base: f32, ignore_incons
                 let mut prev_p = 0u32;
                 let mut prev_t = 0u32;
                 for i in 0u32.. {
+                    if result.header.interleave_ratio[0] == 0
+                        || result.header.interleave_ratio[1] == 0
+                    {
+                        break;
+                    }
                     if i % result.header.interleave_ratio[0] == 0 {
                         if let Some(v) = data_iter.next() {
                             let this_value = prev_p
@@ -203,7 +208,9 @@ pub fn unpack_pages(data: &[u8], page_size: usize, fref_base: f32, ignore_incons
                             break;
                         }
                     }
-                    if i % result.header.interleave_ratio[1] == 0 {
+                    if (result.header.interleave_ratio[1] != 0)
+                        && (i % result.header.interleave_ratio[1] == 0)
+                    {
                         if let Some(v) = data_iter.next() {
                             let this_value = prev_t
                                 .checked_add_signed(unsafe { core::mem::transmute(v) })
