@@ -1,5 +1,4 @@
 #![cfg_attr(not(feature = "unpacker"), no_std)]
-#![feature(mixed_integer_ops)]
 
 extern crate alloc;
 
@@ -54,3 +53,5 @@ pub use data_unpacker::*;
 // https://github.com/sdleffler/empty-box-rs
 mod empty_box;
 pub use empty_box::EmptyBox;
+
+pub(crate) mod add_signed;

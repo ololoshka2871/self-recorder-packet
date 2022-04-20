@@ -153,6 +153,8 @@ pub fn calc_f(target: u32, result: u32, fref: f32) -> f32 {
 /// fref - опорная частота из настроек
 /// ignore_inconsistant - игнорировать ошибки и продлолжать
 pub fn unpack_pages(data: &[u8], page_size: usize, fref_base: f32, ignore_inconsistant: bool) -> Vec<PageData> {
+    use crate::add_signed::AddSigned;
+
     let data = if data.len() % page_size == 0 {
         data
     } else {
@@ -196,7 +198,7 @@ pub fn unpack_pages(data: &[u8], page_size: usize, fref_base: f32, ignore_incons
                     if i % result.header.interleave_ratio[0] == 0 {
                         if let Some(v) = data_iter.next() {
                             let this_value = prev_p
-                                .checked_add_signed(unsafe { core::mem::transmute(v) })
+                                .my_checked_add_signed(unsafe { core::mem::transmute(v) })
                                 .unwrap_or_default();
                             prev_p = this_value;
                             result.fp.push(Record {
@@ -213,7 +215,7 @@ pub fn unpack_pages(data: &[u8], page_size: usize, fref_base: f32, ignore_incons
                     {
                         if let Some(v) = data_iter.next() {
                             let this_value = prev_t
-                                .checked_add_signed(unsafe { core::mem::transmute(v) })
+                                .my_checked_add_signed(unsafe { core::mem::transmute(v) })
                                 .unwrap_or_default();
                             prev_t = this_value;
                             result.ft.push(Record {
