@@ -1,4 +1,3 @@
-use core::iter::FromIterator;
 use std::{fmt::Display, fs::File, io::Write, path::Path, time::Duration};
 
 use alloc::vec::Vec;
@@ -152,8 +151,14 @@ pub fn calc_f(target: u32, result: u32, fref: f32) -> f32 {
 /// page_size - размер страницы
 /// fref - опорная частота из настроек
 /// ignore_inconsistant - игнорировать ошибки и продлолжать
-pub fn unpack_pages(data: &[u8], page_size: usize, fref_base: f32, ignore_inconsistant: bool) -> Vec<PageData> {
+pub fn unpack_pages(
+    data: &[u8],
+    page_size: usize,
+    fref_base: f32,
+    ignore_inconsistant: bool,
+) -> Vec<PageData> {
     use crate::add_signed::AddSigned;
+    use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
     let data = if data.len() % page_size == 0 {
         data
@@ -167,9 +172,10 @@ pub fn unpack_pages(data: &[u8], page_size: usize, fref_base: f32, ignore_incons
         &data[..full_pages * page_size]
     };
 
-    data.chunks(page_size)
+    data.into_par_iter()
+        .chunks(page_size)
         .map(|page| {
-            let unpacker = DataBlockUnPacker::new(Vec::from_iter(page.iter().cloned()));
+            let unpacker = DataBlockUnPacker::new(page.into_iter().cloned().collect());
             let mut result = PageData {
                 header: unpacker.hader(),
                 consistant: unpacker.verify(),
@@ -183,7 +189,7 @@ pub fn unpack_pages(data: &[u8], page_size: usize, fref_base: f32, ignore_incons
                 fref_base
             };
 
-            if ignore_inconsistant || result.consistant  {
+            if ignore_inconsistant || result.consistant {
                 // unpack data
                 let mut data_iter = unpacker.unpack_as::<u32>().into_iter();
 
