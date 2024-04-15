@@ -1,6 +1,3 @@
-#![feature(total_cmp)]
-#![feature(mixed_integer_ops)]
-
 mod test {
     use std::path::Path;
 

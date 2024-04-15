@@ -1,5 +1,3 @@
-#![feature(mixed_integer_ops)]
-
 mod test {
     use rand::{prelude::ThreadRng, Rng};
     use self_recorder_packet::{DataBlockPacker, DataBlockUnPacker};
@@ -52,7 +50,9 @@ mod test {
             acc
         });
 
-        std::fs::write("/tmp/vals.txt", res).unwrap();
+        let tmp = std::env::temp_dir();
+
+        std::fs::write(tmp.join("vals.txt"), res).unwrap();
     }
 
     #[test]

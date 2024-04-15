@@ -1,6 +1,8 @@
 use core::mem::MaybeUninit;
 
+#[cfg(not(feature = "unpacker"))]
 use alloc::vec::Vec;
+
 use heatshrink_rust::decoder::HeatshrinkDecoder;
 
 use crate::DataPacketHeader;

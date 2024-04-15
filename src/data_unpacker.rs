@@ -1,5 +1,6 @@
 use std::{fmt::Display, fs::File, io::Write, path::Path, time::Duration};
 
+#[cfg(not(feature = "unpacker"))]
 use alloc::vec::Vec;
 
 use crate::{DataBlockUnPacker, DataPacketHeader};

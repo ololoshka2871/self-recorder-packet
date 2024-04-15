@@ -1,7 +1,3 @@
-#![feature(int_abs_diff)]
-#![feature(total_cmp)]
-#![feature(mixed_integer_ops)]
-
 mod test {
     use std::path::Path;
 

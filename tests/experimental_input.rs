@@ -1,5 +1,3 @@
-#![feature(total_cmp)]
-
 mod test {
     use std::path::Path;
 

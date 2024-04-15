@@ -29,6 +29,8 @@
 
 use core::mem;
 use core::ptr;
+
+#[cfg(not(feature = "unpacker"))]
 use alloc::boxed::Box;
 
 
@@ -77,7 +79,6 @@ impl<T> EmptyBox<T> {
 #[cfg(test)]
 mod test {
     use core::cell::Cell;
-    use core::mem;
 
     use super::*;
 

@@ -1,4 +1,6 @@
+#[cfg(not(feature = "unpacker"))]
 use alloc::boxed::Box;
+#[cfg(not(feature = "unpacker"))]
 use alloc::vec::Vec;
 
 use heatshrink_rust::encoder_to_vec::HeatshrinkEncoderToVec;
