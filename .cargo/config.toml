@@ -1,0 +1,8 @@
+[registry]
+default = "gitea"
+
+[registries.gitea]
+index = "sparse+http://gitea.sctbelpa/api/packages/SCTBElpa/cargo/"
+
+# [net]
+# git-fetch-with-cli = true
