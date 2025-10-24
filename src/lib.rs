@@ -54,4 +54,5 @@ pub use data_unpacker::*;
 mod empty_box;
 pub use empty_box::EmptyBox;
 
+#[cfg(feature = "unpacker")]
 pub(crate) mod add_signed;
