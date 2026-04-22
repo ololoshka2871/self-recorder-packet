@@ -155,8 +155,8 @@ pub fn calc_f(target: u32, result: u32, fref: f32) -> f32 {
 pub fn unpack_pages(
     data: &[u8],
     page_size: usize,
-    fref_base: f32,
     ignore_inconsistant: bool,
+    freq_multiplier: u32,
 ) -> Vec<PageData> {
     use crate::add_signed::AddSigned;
     use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
@@ -184,12 +184,6 @@ pub fn unpack_pages(
                 ft: Vec::new(),
             };
 
-            let fref = if result.header.f_ref.is_normal() {
-                result.header.f_ref
-            } else {
-                fref_base
-            };
-
             if ignore_inconsistant || result.consistant {
                 // unpack data
                 let mut data_iter = unpacker.unpack_as::<u32>().into_iter();
@@ -205,11 +199,11 @@ pub fn unpack_pages(
                     if i % result.header.interleave_ratio[0] == 0 {
                         if let Some(v) = data_iter.next() {
                             let this_value = prev_p
-                                .my_checked_add_signed(unsafe { core::mem::transmute(v) })
+                                .my_checked_add_signed(u32::cast_signed(v))
                                 .unwrap_or_default();
                             prev_p = this_value;
                             result.fp.push(Record {
-                                freq: calc_f(result.header.targets[0], this_value, fref),
+                                freq: this_value as f32 / freq_multiplier as f32,
                                 timesstamp: result.header.timestamp
                                     + (i * result.header.base_interval_ms) as u64,
                             });
@@ -222,11 +216,11 @@ pub fn unpack_pages(
                     {
                         if let Some(v) = data_iter.next() {
                             let this_value = prev_t
-                                .my_checked_add_signed(unsafe { core::mem::transmute(v) })
+                                .my_checked_add_signed(u32::cast_signed(v))
                                 .unwrap_or_default();
                             prev_t = this_value;
                             result.ft.push(Record {
-                                freq: calc_f(result.header.targets[1], this_value, fref),
+                                freq: this_value as f32 / freq_multiplier as f32,
                                 timesstamp: result.header.timestamp
                                     + (i * result.header.base_interval_ms) as u64,
                             });
